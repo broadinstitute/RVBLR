@@ -1,5 +1,7 @@
 #!/usr/bin/env Rscript
 
+library(tidyverse)
+
 ### use these attributes from VCF file to make a model
 # attributes = c("QD","ReadPosRankSum", "FS", "VPR", "VAF", "VMMF",
 #                "SPLICEADJ", "RPT", "Homopolymer", "Entropy", "RNAEDIT", "INDEL")
