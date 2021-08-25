@@ -1,1 +1,2 @@
-rm -rf ./RVBLR_outdir
+rm -rf ./RVBLR_outdir ./__chckpts
+
