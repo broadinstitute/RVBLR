@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.sep.join([os.path.dirname(os.path.realpath(__file__))
 from Pipeliner import Pipeliner, Command, run_cmd, ParallelCommandList
 
 RVB_UTILDIR = os.path.sep.join([os.path.dirname(os.path.realpath(__file__)), "util"])
-CTAT_UTILDIR = os.path.sep.join([os.path.dirname(os.path.realpath(__file__)), "../.."])
+CTAT_UTILDIR = os.path.sep.join([os.path.dirname(os.path.realpath(__file__)), "../../src"])
 
 
 def main():
@@ -63,9 +63,9 @@ def main():
         args.attributes += ",RS"
     
     
-    cmd = " ".join([ os.path.join(RVB_UTILDIR, "extract_attribute_annotation_matrix.pl"),
-                    args.input_vcf,
-                    args.attributes,
+    cmd = " ".join([ os.path.join(CTAT_UTILDIR, "annotated_vcf_to_feature_matrix.py"),
+                    "--vcf", args.input_vcf,
+                    "--features", args.attributes,
                     ">",
                     matrix_file])
     pipeliner.add_commands([Command(cmd, "feature_extraction_to_matrix.ok")])
