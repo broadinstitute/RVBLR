@@ -1,43 +1,40 @@
 #!/usr/bin/env Rscript
 
-library(tidyverse)
+suppressPackageStartupMessages(library("argparse"))
+suppressPackageStartupMessages(library(tidyverse))
 
-### use these attributes from VCF file to make a model
-# attributes = c("QD","ReadPosRankSum", "FS", "VPR", "VAF", "VMMF",
-#                "SPLICEADJ", "RPT", "Homopolymer", "Entropy", "RNAEDIT", "INDEL")
 
-attributes = c("DJ","ReadPosRankSum","QD","FS","ED","PctExtPos","RS")
+parser = ArgumentParser()
+parser$add_argument("--feature_matrix", required=TRUE, nargs=1, help="feature matrix")
+parser$add_argument("--attributes", default="DJ,ReadPosRankSum,QD,FS,ED,PctExtPos", nargs=1, help="columns to boost on, comma-delimited")
+parser$add_argument("--boosting_score_threshold", default=0.05, nargs=1, help="ecdf cutoff for defining true variants")
+parser$add_argument("--output", required=TRUE, nargs=1, help="output matrix containing boosting results")
 
-args = commandArgs(TRUE)
-if(length(args) < 2 || length(args) > 3) {
-    stop(sprintf("\n\nIncorrect number of arguments. \nUSAGE: RVboost.R input_matrix output_file [attrs=\"%s\"] \n\n", paste(attributes, collapse=",")))
-}
+args = parser$parse_args()
+
 
 ###arguments
-input_matrix = args[1]
-output = args[2]
-
-
-if (length(args) == 3) {
-    attributes = strsplit(args[3], ",")[[1]]
-}
+input_matrix = args$feature_matrix
+output = args$output
+attributes = strsplit(args$attributes, ",")[[1]]
 
 if (! 'RS' %in% attributes) {
-    message("Adding RS to attributes list, as it is essential")
     attributes = c(attributes, 'RS')  # required
 }
 
+if (! 'IND' %in% attributes) {
+    attributes = c(attributes, 'IND')  # required
+}
+
+boosting_score_threshold = args$boosting_score_threshold
+result_table = args$output
 
 message("Using attribute list: ", paste(attributes, collapse=","))
 
 library(gbm)
 
-data = read.table(input_matrix, header=T, row.names=1, stringsAsFactors = FALSE)
+data = read.table(input_matrix, header=T, stringsAsFactors = FALSE, sep="\t")
 
-# Remove GT_1/2 if it is not present in the features
-if (!("GT_1/2" %in% colnames(data))){
-    attributes = attributes[attributes != "GT_1/2"]
-}
 
 if (! all(attributes %in% colnames(data))) {
     missing_atts = attributes[ ! attributes %in% colnames(data) ]
@@ -45,67 +42,41 @@ if (! all(attributes %in% colnames(data))) {
 }
 
 
+
+# remove rna-editing sites
+if ("RNAEDIT" %in% colnames(data)) {
+
+    data = data %>% select(-RNAEDIT)
+    message("-removing RNAEDIT sites")
+}
+
+
+# pull just attribute columns
 data = data[, attributes, drop=F] # restrict to what we want to analyze here and reorder columns
 
-RS_col = which(colnames(data) %in% "RS")
-RS = data[, RS_col, drop=T]
-RS = ifelse(is.na(RS), 0, 1)
 
-data = data[,-RS_col, drop=F]
+# get RS and chrpos indicators
+
+RS = data %>% pull(RS)
+
+chrpos = data %>%  pull(IND)
+
+data = data %>% select(-c(IND, RS))
+
 
 ## reset attributes sans RS
 attributes = colnames(data)
 
 
-###########################
-## adjust data where needed.
-if ("ReadPosRankSum" %in% attributes) {
-    ReadPosRankSum_col = which(attributes %in% "ReadPosRankSum")
-    data[,ReadPosRankSum_col] = abs(data[,ReadPosRankSum_col])
-    is_NA_booleans = (is.na(data[,ReadPosRankSum_col]) | is.null(data[,ReadPosRankSum_col]) )
-    data[is_NA_booleans, ReadPosRankSum_col] = median(data[ ! is_NA_booleans, ReadPosRankSum_col])
-}
-
-if ("SPLICEADJ" %in% attributes) {
-    SPLICEADJ_col = which(attributes %in% "SPLICEADJ")
-    data[,SPLICEADJ_col][is.na(data[,SPLICEADJ_col])] = -1
-}
-
-if ("RPT" %in% attributes) {
-    RPT_col = which(attributes %in% "RPT")
-    is_NA_rpt = is.na(data[,RPT_col])
-
-    data[is_NA_rpt, RPT_col] = 0
-    data[! is_NA_rpt, RPT_col] = 1
-}
-
-if ("Homopolymer" %in% attributes) {
-    Homopolymer_col = which(attributes %in% "Homopolymer")
-    is_NA_homopolymer = is.na(data[,Homopolymer_col])
-    data[is_NA_homopolymer, Homopolymer_col] = 0
-}
-
-if ("RNAEDIT" %in% attributes) {
-    RNAEDIT_col = which(attributes %in% "RNAEDIT")
-    is_NA_rnaedit = is.na(data[, RNAEDIT_col])
-    data[,RNAEDIT_col] = 0
-    data[! is_NA_rnaedit,RNAEDIT_col] = 1
-
-    if (sum(data[,RNAEDIT_col]) == 0) {
-        message("warning, no RNAEDIT events assigned. Removing column")
-        data = data[,-RNAEDIT_col]
-    }
-}
-
-# Set values with NA to the median value 
+# Set values with NA to the median value
 for(j in 1:ncol(data)){
     is_na <- which(is.na(data[ ,j]))
-    
+
     if(length(is_na) > 0){
-        # get the median of the non NA values 
+        # get the median of the non NA values
         not_na <- which(!is.na(data[ ,j]))
         median_value <- median(data[not_na,j])
-        # set the Na's to the median 
+        # set the Na's to the median
         data[is_na,j] <- median_value
     }
 }
@@ -137,6 +108,6 @@ ecdf_func <- ecdf(fitted_values[which(RS==1)])
 # apply all scores to ecdf_func
 fitted_value_scores = ecdf_func(fitted_values)
 
-result_table = data.frame(variants=rownames(data), RVBfitval=fitted_values, RVBscore=fitted_value_scores)
+result_table = data.frame('chr:pos'=chrpos, RS=RS, RVBfitval=fitted_values, RVBscore=fitted_value_scores, boosted = (fitted_value_scores >= boosting_score_threshold) )
 
 write.table(result_table, file=output, quote=F, row.names=F, sep="\t")

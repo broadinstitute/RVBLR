@@ -17,7 +17,7 @@ logger = logging.getLogger('ctat_mutations')
 logging.basicConfig(stream=sys.stderr, format=FORMAT, level=logging.INFO)
 
 
-sys.path.insert(0, os.path.sep.join([os.path.dirname(os.path.realpath(__file__)), "../../../PyLib"]))
+sys.path.insert(0, os.path.sep.join([os.path.dirname(os.path.realpath(__file__)), "../../PyLib"]))
 from Pipeliner import Pipeliner, Command, run_cmd, ParallelCommandList
 
 RVB_UTILDIR = os.path.sep.join([os.path.dirname(os.path.realpath(__file__)), "util"])
@@ -66,8 +66,7 @@ def main():
     cmd = " ".join([ os.path.join(CTAT_UTILDIR, "annotated_vcf_to_feature_matrix.py"),
                     "--vcf", args.input_vcf,
                     "--features", args.attributes,
-                    ">",
-                    matrix_file])
+                    "--output", matrix_file])
     pipeliner.add_commands([Command(cmd, "feature_extraction_to_matrix.ok")])
     
     
