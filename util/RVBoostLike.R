@@ -108,6 +108,6 @@ ecdf_func <- ecdf(fitted_values[which(RS==1)])
 # apply all scores to ecdf_func
 fitted_value_scores = ecdf_func(fitted_values)
 
-result_table = data.frame('chr:pos'=chrpos, RS=RS, RVBfitval=fitted_values, RVBscore=fitted_value_scores, boosted = (fitted_value_scores >= boosting_score_threshold) )
+result_table = data.frame('chr:pos'=chrpos, RS=RS, RVBfitval=fitted_values, RVBscore=fitted_value_scores, boosted = (fitted_value_scores >= boosting_score_threshold), check.names=FALSE )
 
 write.table(result_table, file=output, quote=F, row.names=F, sep="\t")

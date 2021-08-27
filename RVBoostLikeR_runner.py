@@ -71,32 +71,22 @@ def main():
     
     
     # run rvboost-like-R
-    boost_scores_file = os.path.join(output_dir, "RVB_like_R.var_scores")
+    boost_scores_file = matrix_file + ".RVBLR_var_scores"
     cmd = " ".join([ os.path.join(RVB_UTILDIR, "RVBoostLike.R"),
-                    matrix_file,
-                    boost_scores_file,
-                    args.attributes ])
-    
+                    "--feature_matrix", matrix_file,
+                    "--attributes", args.attributes,
+                    "--boosting_score_threshold", str(args.score_threshold),
+                    "--output", boost_scores_file])
+        
     pipeliner.add_commands([Command(cmd, "rvboost_core.ok")])
-    
-    # incorporate score annotations into vcf file:
-    vcf_w_rvb_score_filename = os.path.join(output_dir, os.path.splitext(os.path.basename(args.input_vcf))[0] + ".RVBLR.vcf")
-    cmd = " ".join([ os.path.join(RVB_UTILDIR, "annotate_RVBoostLikeR_scores_in_vcf.py"),
-                     "--input_vcf", args.input_vcf,
-                     "--scores", boost_scores_file,
-                     "--output_vcf", vcf_w_rvb_score_filename ])
-    
-    pipeliner.add_commands([Command(cmd, "annot_rvb_score.ok")])
-    
 
-    # apply a filter on the score threshold:
-
-    score_filtered_vcf = args.output_filename
+        
+    # generate filtered vcf file:
     
-    cmd = " ".join([ os.path.join(RVB_UTILDIR, "filter_by_RVBLRQ.pl"),
-                     vcf_w_rvb_score_filename,
-                     str(args.score_threshold),
-                     " > {} ".format(score_filtered_vcf) ])
+    cmd = " ".join([ os.path.join(CTAT_UTILDIR, "extract_boosted_vcf.py"),
+                    "--vcf_in", args.input_vcf,
+                    "--boosted_variants_matrix", boost_scores_file,
+                    "--vcf_out", args.output_filename])
 
     pipeliner.add_commands([Command(cmd, "filt_qscore_{}.ok".format(args.score_threshold))])
     
@@ -104,6 +94,8 @@ def main():
     
     pipeliner.run()
 
+    print("-done. See RVBLR vcf output file: {}".format(args.output_filename))
+    
     sys.exit(0)
     
 
